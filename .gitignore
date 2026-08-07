@@ -1,0 +1,17 @@
+# local agent tooling & machine config — except the tracked skill symlinks, so the
+# skill works from a bare clone
+.claude/*
+!.claude/skills/
+.mcp.json
+skills-lock.json
+
+# the upstream foc-cli skill, installed alongside this one — not ours to ship
+skills/foc-cli/
+
+# scratch
+greeting.txt
+greeting-recalled.txt
+*.tmp
+
+node_modules/
+.DS_Store
