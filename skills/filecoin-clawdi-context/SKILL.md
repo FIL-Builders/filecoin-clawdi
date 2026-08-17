@@ -1,6 +1,6 @@
 ---
 name: filecoin-clawdi-context
-description: Hand a working context — a design, a plan, a spec — from one Clawdi-connected agent to another, sealed end to end: ciphertext on Filecoin Onchain Cloud, key in the Clawdi vault, so no key is ever sent, shown, or typed. Use when someone says "seal this and hand it off to my other agent" or "pick up the <topic> context".
+description: Hand a working context — a design, a plan, a spec — from one Clawdi-connected agent to another, sealed end to end — ciphertext on Filecoin Onchain Cloud, key in the Clawdi vault, so no key is ever sent, shown, or typed. Use when someone says "seal this and hand it off to my other agent" or "pick up the <topic> context".
 license: Apache-2.0 OR MIT
 ---
 
