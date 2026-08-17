@@ -44,7 +44,7 @@ validation runs foc-cli inside that box; it can only resolve the reference if it
 project has the vault attached):
 
 ```bash
-clawdi project list --include-envs               # every env id — hosted agent included
+clawdi project list --include-workspaces         # every env id — hosted agent included
 clawdi vault attach default --project <env-id>   # idempotent; "already available" is fine
 ```
 
@@ -74,10 +74,10 @@ seconds" hints mislead — N can jump to ~22 hours. **Never sit in a retry loop.
 `FUND_FAILED` mentioning `Cannot read properties of undefined (reading 'ServerError')`
 is a mangled faucet refusal — treat it the same. When refused, hand the user the manual
 route (human-in-browser; the USDFC faucet sits behind a Cloudflare challenge), using the
-address from `foc-cli wallet balance --json`:
-
-- tFIL: <https://faucet.calibnet.chainsafe-fil.io>
-- USDFC: <https://forest-explorer.chainsafe.dev/faucet/calibnet_usdfc>
+address from `foc-cli wallet balance --json`: the current tFIL and USDFC faucets are
+listed on the official Filecoin docs' Calibration page,
+<https://docs.filecoin.io/networks-and-tools/networks/calibration> — send the user
+there rather than to a faucet host directly, so the links stay current and vetted.
 
 Then re-run `foc-cli wallet deposit 1`.
 
