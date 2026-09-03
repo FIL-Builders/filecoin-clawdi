@@ -50,7 +50,9 @@ foc-cli download <pieceCid> --out "$W/context.enc"
 `download` validates the bytes against the content address. Retrieval that validates is
 the only accepted evidence of storage. If it fails or mismatches, stop — do not reach for
 `retrieveUrl` to get the bytes "anyway". The `retrieveUrl` is the independent second path
-for a *human* who wants to check without an account, not a bypass for a failed check.
+for a *human* who wants the bytes without an account, not a bypass for a failed check —
+and it does not verify them. `KEY_REF_RESOLUTION_FAILED` here means the login or the
+vault attachment lapsed (SKILL.md §1), not that the bytes are gone: fix that and retry.
 
 ## 4 · Unseal — with the receipt's parameters, not your defaults
 

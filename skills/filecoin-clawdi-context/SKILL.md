@@ -1,23 +1,29 @@
 ---
 name: filecoin-clawdi-context
-description: Hand a working context — a design, a plan, a spec — from one Clawdi-connected agent to another, sealed end to end — ciphertext on Filecoin Onchain Cloud, key in the Clawdi vault, so no key is ever sent, shown, or typed. Use when someone says "seal this and hand it off to my other agent" or "pick up the <topic> context".
+description: Use when someone says "pick up the <topic> context", "seal this and hand it off", or asks to plan against context another agent produced. Hands a working context — a design, a plan, a spec — from one Clawdi-connected agent to another, sealed end to end (ciphertext on Filecoin Onchain Cloud, key in the Clawdi vault, receipt in Clawdi memory), so no key is ever sent, shown, or typed.
 license: Apache-2.0 OR MIT
 ---
 
 # filecoin-clawdi-context — sealed handoff between two agents that never exchange a key
 
 What this proves: an agent seals a context, stores the ciphertext on Filecoin, and
-leaves a ~450-byte receipt in Clawdi's shared memory. A **different agent, on a
+leaves a receipt under a kilobyte in Clawdi's shared memory. A **different agent, on a
 different machine, in a different framework** finds that receipt, downloads the bytes by
 their hash, and unseals them — because both resolve the same vault reference. No key was
 sent between them. Neither ever saw one.
 
 | Layer | What it guarantees |
 | --- | --- |
-| PieceCID + PDP | **what** is stored — anyone can fetch the bytes and verify them, no account needed |
+| PieceCID + PDP | **what** is stored — anyone can fetch the bytes over HTTP by `retrieveUrl`; a foc-cli download additionally validates them against the hash (that needs a configured wallet) |
 | Clawdi vault | **who** can read it — one reference, revocable with `vault detach`, rotatable with `vault set` |
 
 The bytes are public and provable *and* unreadable. That is the whole point.
+
+Both sides must be **connected agents with a logged-in `clawdi` CLI** — Claude Code,
+Codex, OpenClaw, or Hermes on a machine that ran setup. A Clawdi **Cloud Agent** cannot
+seal or open: its runtime has no `clawdi` CLI and no wallet, and resolving the key through
+its MCP `vault_resolve` tool would put the value in the model's context, which this skill
+never does. It can still find the receipt and fetch the ciphertext; it cannot read it.
 
 Two operations: **seal** (§2) and **open** (§3). Run §1 before either.
 
@@ -26,8 +32,12 @@ Two operations: **seal** (§2) and **open** (§3). Run §1 before either.
 This skill assumes the machine already ran **filecoin-clawdi-setup** (agents registered,
 wallet on a vault key ref, content key minted). If `foc-cli wallet balance --json` doesn't
 show `keySource: "keyRef"`, stop and run that skill first — `npx skills add
-https://github.com/FIL-Builders/filecoin-clawdi --skill filecoin-clawdi-setup`, then
-"set up Filecoin memory".
+https://github.com/FIL-Builders/filecoin-clawdi --skill filecoin-clawdi-setup -g -y`,
+then "set up Filecoin memory". One exception: `KEY_REF_RESOLUTION_FAILED` together with
+`"authenticated": false` from `clawdi auth status --json` means the wallet is fine and
+the login lapsed — start the login yourself the way setup §1 does (`clawdi auth login
+--no-open`, hand the user the URL, pipe the pasted callback into `clawdi auth complete`)
+and re-check; don't re-run setup.
 
 **1. The content key resolves from this project.** `--dry-run` never prints the value:
 

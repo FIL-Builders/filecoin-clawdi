@@ -1,7 +1,9 @@
 # Seal — encrypt the context, store the ciphertext, index the receipt
 
 The agent that holds the context runs this. It can be any Clawdi-supported agent type
-(`claude_code`, `codex`, `openclaw`, `hermes`), local or hosted — the flow is identical.
+(`claude_code`, `codex`, `openclaw`, `hermes`) running as a connected agent with a
+logged-in `clawdi` CLI — the flow is identical across them. A Clawdi Cloud Agent cannot
+seal (SKILL.md, top).
 
 ## 1 · Write it
 
