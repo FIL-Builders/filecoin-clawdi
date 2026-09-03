@@ -47,8 +47,8 @@ pieceCid: <pieceCid> | dataSetId: <id> | size: <n> bytes | created: <YYYY-MM-DD>
 retrieveUrl: <url> | verify: download validates bytes against the CID" --category context
 ```
 
-The receipt is ~400 bytes. That is all Clawdi memory ever holds — the heavy bytes live
-on Filecoin, where the address is the hash.
+The receipt is a few hundred bytes. That is all Clawdi memory ever holds — the heavy
+bytes live on Filecoin, where the address is the hash.
 
 ## 4 · How the other agent hears it — recall
 
@@ -60,9 +60,13 @@ foc-cli download <pieceCid> --out greeting-recalled.txt  # validates bytes again
 ```
 
 `download` is the proof: retrieval that validates against the content address is the
-only accepted evidence of storage. The `retrieveUrl` in the receipt is the independent
-second path — plain HTTP returns the exact bytes for anyone to verify, no account
-required.
+only accepted evidence of storage. It needs a configured foc-cli wallet — the CLI
+resolves the key reference before it retrieves, even though verification signs nothing —
+which every connected agent on this machine has. The `retrieveUrl` in the receipt is the
+independent second path: plain HTTP returns the same bytes to anyone, no account
+required, but **without** checking them against the CID. A Clawdi Cloud Agent has only
+that path — it searches memory through the `memory_search` MCP tool and fetches the URL —
+so what it reads back is recall, not proof.
 
 Require the receipt's `topic:` to match what was asked for. Semantic search returns hits
 for *any* query; if no exact topic receipt exists, say so — never substitute a near

@@ -38,13 +38,13 @@ setup; the resolve check above will then skip generation.
 Only after §1 — a fresh account shows **0 vaults** until `clawdi vault set` creates the
 default one, and there is nothing to attach before that.
 
-Attach the vault to every environment project that will run foc-cli — any project a
-registration just created, and the **hosted agent** from the prerequisites (the final
-validation runs foc-cli inside that box; it can only resolve the reference if its
-project has the vault attached):
+Attach the vault to every environment project that will run foc-cli — every project a
+registration in SKILL.md §2 just created. If the account also has a Cloud Agent, attach
+it there too so its MCP vault tools can see the key, but it will never run foc-cli (its
+runtime has no `clawdi` CLI); the local registrations are the ones that matter:
 
 ```bash
-clawdi project list --include-workspaces         # every env id — hosted agent included
+clawdi project list --include-workspaces         # every env id, Cloud Agent included
 clawdi vault attach default --project <env-id>   # idempotent; "already available" is fine
 ```
 
@@ -89,5 +89,17 @@ foc-cli wallet balance --json    # want keySource: "keyRef" and a derived addres
 
 `keySource: "keyRef"` proves the config holds a reference, not a key. The address is
 derived from whatever key actually signed — if it matches the funded wallet, the chain
-works end to end. And raw keys must never appear anywhere: if you ever suspect one
-leaked into a file or log, `grep -rInE '0x[0-9a-fA-F]{64}' .` must come back empty.
+works end to end. And raw keys must never appear anywhere. Two places to check, not one:
+
+```bash
+grep -rInE '0x[0-9a-fA-F]{64}' .        # the working tree — must come back empty
+ls -la "$HOME/Library/Preferences/foc-cli-nodejs" "$HOME/.config/foc-cli-nodejs" 2>/dev/null
+```
+
+The second is foc-cli's own config directory (macOS, then Linux; it uses the `conf`
+package under the name `foc-cli-nodejs`). foc-cli itself writes only `config.json` there,
+but a machine that migrated from an older private-key wallet to `--keyRef` may carry a
+backup beside it — a `config.json.bak-<timestamp>` from a hand-made or scripted
+migration — **with the raw key still inside**. Anything in that directory other than
+`config.json` is a finding: tell the user plainly and leave it alone — it may be the only
+copy of a funded wallet, and deleting it is their call, not yours. Never `cat` it.

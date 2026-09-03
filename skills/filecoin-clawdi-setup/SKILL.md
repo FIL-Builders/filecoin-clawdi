@@ -1,13 +1,13 @@
 ---
 name: filecoin-clawdi-setup
-description: One-skill setup for Filecoin-backed provable agent memory via Clawdi. Registers every Clawdi-supported agent type on the machine (Claude Code, Codex, OpenClaw, Hermes), wires a vault-held Filecoin wallet into foc-cli, then stores a greeting on Filecoin Onchain Cloud and indexes a tiny receipt into Clawdi's shared memory so any other agent can find it and cryptographically verify the content. Use when someone says "set up filecoin memory", "set up the filecoin clawdi demo", "finish the filecoin-clawdi setup", "connect my agents to filecoin", or "wire up filecoin storage".
+description: Use when someone says "set up Filecoin memory", "set up the filecoin clawdi demo", "finish the filecoin-clawdi setup", "connect my agents to filecoin", or "wire up filecoin storage". One-skill setup for Filecoin-backed provable agent memory via Clawdi — registers every Clawdi-supported agent on the machine (Claude Code, Codex, OpenClaw, Hermes), wires a vault-held Filecoin wallet into foc-cli, then stores a greeting on Filecoin Onchain Cloud and indexes a tiny receipt into Clawdi's shared memory so any other connected agent can find it and cryptographically verify the content.
 license: Apache-2.0 OR MIT
 ---
 
 # filecoin-clawdi-setup — one wallet, one greeting, every agent can hear it
 
 What this proves: an agent stores bytes on Filecoin (the address *is* the hash of the
-bytes), leaves a ~400-byte receipt in Clawdi's shared memory, and any other
+bytes), leaves a receipt of a few hundred bytes in Clawdi's shared memory, and any other
 Clawdi-connected agent can find that receipt, download the bytes by their hash, and
 verify them. The setup ends by leaving a greeting from *you* in that memory.
 
@@ -33,12 +33,14 @@ Map the product you are running as to a Clawdi agent type:
 ## 1 · Prerequisites — you install the tools; the user only brings an account
 
 **Install these yourself and report what you installed** — they need no human input, so
-they are not to-do items for the user: `npm i -g clawdi@^0.13 foc-cli@0.3.0` for whichever
+they are not to-do items for the user: `npm i -g clawdi@^0.14 foc-cli@0.3.0` for whichever
 is missing (foc-cli pinned to the release these steps were validated against — older
-versions lack `--keyRef` and cannot do vault custody; bump the pin deliberately). If a
-global install is refused with `EACCES`, use `npm i -g --prefix "$HOME/.local" …` and put
-`$HOME/.local/bin` on `PATH`. Node.js ≥ 20 is the one tool you can't fix from here — if
-`node --version` fails or is older, that alone is a human step.
+versions lack `--keyRef` and cannot do vault custody; every clawdi flag used below was
+checked against 0.14.39, and the CLI self-updates within its line; bump either pin
+deliberately). If a global install is refused with `EACCES`, use
+`npm i -g --prefix "$HOME/.local" …` and put `$HOME/.local/bin` on `PATH`. Node.js ≥ 24
+(clawdi 0.14's engine floor; foc-cli needs ≥ 22) is the one tool you can't fix from here —
+if `node --version` fails or is older, that alone is a human step.
 
 The sealed-handoff skill ships beside this one (same publisher, same repository) and §3
 keys it up, so install it now if it isn't already present — one agent's sealed context is
@@ -46,25 +48,61 @@ unreadable to an agent that doesn't have it. The skills CLI prints a review noti
 install; skills run with your permissions, so read what you installed:
 
 ```bash
-npx skills add https://github.com/FIL-Builders/filecoin-clawdi --skill filecoin-clawdi-context
+npx skills add https://github.com/FIL-Builders/filecoin-clawdi --skill filecoin-clawdi-context -g -y
 ```
 
-**The one human prerequisite — ask for it FIRST, then wait for confirmation:**
+`-g` puts the skill in `~/.agents/skills`, which Codex, OpenClaw, Hermes and most other
+agents read directly, and symlinks it into `~/.claude/skills` — one install, every agent
+on the machine, from any directory. Without `-g` it lands in the current directory's
+`.agents/skills` and is invisible everywhere else. `-y` skips the prompts so the command
+runs unattended. A trailing "PromptScript does not support global skill installation"
+line is noise from an unrelated agent type; the install succeeded if the
+`Installed 1 skill` box names `~/.agents/skills/filecoin-clawdi-context`.
+
+**The one human prerequisite — a Clawdi login. You drive it; the user only clicks:**
 
 Check `clawdi auth status --json` and parse `"authenticated"` (the exit code is 0 even
-when logged out). If not authenticated, ask the user to:
+when logged out). If not authenticated, the user never types a command — the login is
+two CLI calls you make, with one browser visit between them:
 
-1. Go to [clawdi.ai](https://clawdi.ai) and create an account (or log in).
-2. Create a **hosted agent of their preference** — the dashboard offers it right after
-   login. That agent is who validates the demo at the end (§6).
-3. Come back and confirm.
+```bash
+clawdi auth login --no-open     # 1. prints the authorization URL, saves PKCE state, exits
+```
 
-Then run `clawdi auth login` — it finishes in their browser; never handle credentials —
-and re-check auth status.
+From an agent shell (no TTY) this never opens a browser and never waits: it prints the
+URL, saves the pending PKCE state in `~/.clawdi/pending-auth.json`, and returns. Hand the
+user the URL with the whole round trip spelled out in one message — people say "done"
+after approving and don't know there is a second half unless you tell them up front:
 
-Already authenticated? Still confirm the hosted agent exists:
-`clawdi project list --include-workspaces` should show a hosted environment. If it doesn't,
-ask the user to create one in the dashboard before moving on.
+> Open this link and approve Clawdi (sign in or create the account if asked):
+> `<authorization URL>`
+> After you approve, the browser lands on an address starting with
+> `http://127.0.0.1:` that **fails to load** — that is expected, nothing is listening.
+> Copy the full address from that tab's address bar and paste it here; that paste is
+> what finishes the login. The link is good for 10 minutes.
+
+Then, with what they paste:
+
+```bash
+printf '%s' '<pasted callback URL>' | clawdi auth complete   # 2. on stdin, never as an argument
+```
+
+The pasted URL carries a one-time code bound to the PKCE verifier on this machine; the
+CLI takes it on stdin so it stays out of argv and shell history — pass it that way, don't
+echo it, don't keep it. Re-check `clawdi auth status --json`. The pending state expires
+**10 minutes** after step 1: on `oauth_login_expired`, run step 1 again and hand over the
+new URL — each run replaces the previous state, so always use the latest one. Never
+`--manual` (it asks for a pasted API key) and never read `auth.json`.
+
+A **Cloud Agent** — the dashboard's name for a hosted Hermes or OpenClaw — is
+**optional**. It is not needed for the wallet, the greeting, or a sealed handoff between
+local agents, and it cannot run the `clawdi` CLI at all: the managed runtime keeps the
+CLI and every platform credential out of the tenant shell, so only its MCP tools are
+credentialed. Its one role here is the cloud-side recall in §6 (Path B), which works
+through those MCP tools plus plain HTTP. Don't ask the user to create one. If
+`clawdi project list --include-workspaces` already shows one, use it in §6. Creating one
+is a paid, human decision — in the dashboard (**New agent → Deploy on Clawdi**, pick
+Hermes or OpenClaw, review the monthly price) or through the `clawdi deploy` wizard.
 
 ## 2 · Register every supported agent on this machine
 
@@ -86,6 +124,11 @@ rather than leaving one running as a side effect of this setup.
   `clawdi setup --agent <claude_code|codex|openclaw|hermes>`.
 - `clawdi doctor` can report an agent "detected" from a leftover config directory alone
   (`~/.openclaw`, …). Confirm `command -v <binary>` before counting it as installed.
+- From an agent shell there is no prompt: the sweep registers **every detected** agent,
+  including ones detected from a config directory whose binary isn't on `PATH` (the
+  interactive prompt would have left those unticked). Harmless, but if you want the
+  registry to match reality, register per real binary instead:
+  `clawdi setup --no-daemon --agent <type>` once for each `command -v` hit.
 
 **Outcome A — nothing to register.** If no supported agent type exists on this machine
 and you are not one either, stop here and tell the user plainly:
@@ -136,10 +179,9 @@ wallet live), but the greeting must come from a Clawdi-registered agent — and 
 not one. Tell the user, plainly, and stop:
 
 > Everything is set up except me: I don't run on an agent type Clawdi supports, so I
-> can't leave the greeting myself. Open a session in one of your Clawdi-connected
-> runtimes (⟨list what §2 registered⟩, or your hosted agent's chat in the Clawdi
-> dashboard) and say: **"finish the filecoin-clawdi setup"**. It will find everything
-> ready and pick up at the greeting.
+> can't leave the greeting myself. Open a session in one of the connected agents this
+> setup registered (⟨list what §2 registered⟩) and say: **"finish the filecoin-clawdi
+> setup"**. It will find everything ready and pick up at the greeting.
 
 ## 5 · The greeting — store it on Filecoin, index it in Clawdi
 
@@ -152,32 +194,46 @@ were never stored poisons every agent's recall.
 
 ## 6 · Hand off — end the report with exactly ONE call to action
 
-Validation happens through the user's **hosted agent** — the one they created in the
-Clawdi dashboard during §1. Close your final report with this, and nothing else asking
-for action:
+The proof needs a second agent that never saw this one's files. Pick the path that
+matches what §2 registered, and close your final report with that single call to action —
+nothing else asking for action.
 
-> **Your one next step:** open your hosted agent's chat in the
+**Path A — another connected agent on this machine** (Codex, OpenClaw, Hermes, or Claude
+Code if you are not it). It shares the Clawdi login, the vault attachment, the foc-cli
+wallet config, and the `~/.agents/skills` install from §1, so it needs nothing installed.
+It is also the only kind of agent that can *unseal* a context later. Close with:
+
+> **Your one next step:** open ⟨the other registered agent⟩ in a fresh session and say:
+>
+> *"Search your Clawdi memory for anything Filecoin-related, download what it points at
+> with foc-cli, and tell me what it says."*
+>
+> It will find the greeting receipt, download the bytes by their hash, check them against
+> the PieceCID, and read this machine's greeting back to you. A different framework, and
+> the only thing it had to trust was the hash.
+
+**Path B — a Clawdi Cloud Agent, only if one already exists.** Its shell has no `clawdi`
+CLI and no wallet, so it cannot run foc-cli or resolve the vault. It can search memory
+through the Clawdi MCP tools and fetch the receipt's `retrieveUrl` over HTTP: a real
+cross-machine recall of the same bytes, but an *unverified* one — say so. Close with:
+
+> **Your one next step:** open your Cloud Agent's chat in the
 > [Clawdi dashboard](https://clawdi.ai) and paste:
 >
-> *"Install the foc-cli skill (`npx skills add https://github.com/FIL-Builders/foc-cli
-> --skill foc-cli`) and the CLI itself if it's missing (`npm i -g foc-cli@0.3.0`), plus the
-> sealed-context skill (`npx skills add
-> https://github.com/FIL-Builders/filecoin-clawdi --skill filecoin-clawdi-context`).
-> Set it up with the vault-held Filecoin key: run its Clawdi vault project setup, then
-> `foc-cli wallet init --keyRef clawdi:FILECOIN_PRIVATE_KEY`. Never use a raw key.
-> Then search your memory for anything Filecoin-related, retrieve what it points at,
-> and tell me what it says."*
+> *"Search your memory for anything Filecoin-related, fetch the retrieveUrl in the
+> receipt over HTTP, and tell me what it says."*
 >
-> The remote agent will find the greeting receipt, download the bytes by their hash,
-> check them against the PieceCID, and read this machine's greeting back to you. A
-> different agent on a different machine, and the only thing it had to trust was the
-> hash.
+> It will find the greeting receipt and read this machine's greeting back to you from a
+> different machine, having trusted only the receipt. Checking the bytes against the hash
+> is what a connected agent adds.
 
-That same paste leaves the remote agent able to **open sealed contexts** too — it now has
-the **filecoin-clawdi-context** skill and resolves the same content key. Anything a local
-agent seals — a design, a plan, a spec — it can retrieve and unseal, with the bytes public
-and provable the whole way and no key ever crossing between them. Mention that capability
-in one closing line; do not turn it into a second thing to do.
+If the machine has neither, close with Path A's line and name the agent to install.
+
+Either way, mention in one closing line that every connected agent on this machine can
+now **open sealed contexts** too — it resolves the same content key through the
+**filecoin-clawdi-context** skill installed in §1 — and that a Cloud Agent cannot, until
+Clawdi gives its runtime a credentialed way to resolve a vault reference without putting
+the value in the model's context. Do not turn that into a second thing to do.
 
 ## Rules that keep this safe
 
