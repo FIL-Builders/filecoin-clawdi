@@ -8,22 +8,24 @@ An agent working on a plan, a design, or a spec eventually runs low on context o
 
 This repo adds a skill that seals an agent's working context, stores it on Filecoin, and lets a different agent retrieve and verify that exact content later, so it can pick up the work instead of starting over. The content lives on Filecoin's sovereign storage, not inside any single company's platform, so it doesn't disappear if you stop using one particular tool.
 
-Works today with Claude Code, Codex, OpenClaw, and Hermes.
+Works today with Claude Code, Codex, OpenClaw, and Hermes running as connected agents on your machine, on Filecoin's Calibration testnet. A Clawdi Cloud Agent can find a receipt and fetch the bytes, but cannot unseal a context: its runtime has no CLI and no wallet.
 
 ## Prerequisites
 
-1. A Clawdi account with a hosted agent. Sign up at [clawdi.ai](https://clawdi.ai) and create a hosted agent, the dashboard offers this right after login.
-2. One supported local agent to run the setup: Claude Code, Codex, OpenClaw, or Hermes, with Node.js 20 or newer.
+1. A Clawdi account. Sign up at [clawdi.ai](https://clawdi.ai). A Cloud Agent (a hosted Hermes or OpenClaw, paid) is optional; setup only uses one, if it exists, for the cloud-side recall at the end.
+2. One supported local agent to run the setup: Claude Code, Codex, OpenClaw, or Hermes, with Node.js 24 or newer.
 
-Everything else (the Clawdi CLI, foc-cli, the wallet, funding) gets installed and configured by the setup step below. The only manual step in that process is logging in, `clawdi auth login` opens your browser. To use your own Filecoin key instead of a freshly minted one, run `clawdi vault set FILECOIN_PRIVATE_KEY --prompt` first.
+Everything else (the Clawdi CLI, foc-cli, the wallet, funding) gets installed and configured by the setup step below. The only manual step in that process is approving the login in your browser: your agent starts it, gives you a link, and you paste back the address the browser lands on. To use your own Filecoin key instead of a freshly minted one, run `clawdi vault set FILECOIN_PRIVATE_KEY --prompt` first.
 
 ## Install
 
 ### Step 1: Install the skill and start setup
 
 ```bash
-npx skills add https://github.com/FIL-Builders/filecoin-clawdi --skill filecoin-clawdi-setup
+npx skills add https://github.com/FIL-Builders/filecoin-clawdi --skill filecoin-clawdi-setup -g -y
 ```
+
+`-g` installs into `~/.agents/skills`, which Codex, OpenClaw, Hermes and most other agents read, and symlinks it for Claude Code, so one install covers every agent on the machine from any directory. Without it the skill lands in the current folder only. A "PromptScript does not support global skill installation" line at the end is harmless noise.
 
 From any directory, open your agent and say:
 
@@ -31,17 +33,20 @@ From any directory, open your agent and say:
 Set up Filecoin memory.
 ```
 
-This installs both skills in the repo. Your agent then checks two separate things: whether you're authenticated with Clawdi, and whether a hosted agent already exists in your account. Neither implies the other, you can be logged in with no hosted agent yet, or have a hosted agent from a previous session but a new login to do. If both check out, it goes straight to registering itself, creating a wallet, and funding it, skip to the result below, if either is missing proceed to Step 2. 
+This installs the second skill too. Your agent then checks whether you're logged in to Clawdi. If you are, it goes straight to registering itself, creating a wallet, and funding it, skip to the result below. If not, proceed to Step 2. 
 
 ### Step 2: Create your Clawdi account and authorize
 
-1. Visit [clawdi.ai](https://clawdi.ai) and create an account, or log in if you already have one.
-2. Create a hosted agent. The dashboard offers this right after login, pick Hermes or OpenClaw, and a free or paid tier, whichever fits what you need.
-3. Once that's done, your agent runs `clawdi auth login` and gives you a URL.
-4. Open that URL in your browser and complete the authorization.
-5. If the page fails to load after you authorize (common when running in a remote or sandboxed setup), copy the full URL from your browser's address bar anyway and paste it back to your agent. It can complete the login from that URL even though the page itself shows an error.
+You never type a terminal command here. Your agent runs the login and hands you a link.
 
-With authorization done, your agent picks back up automatically: it registers itself with Clawdi, creates a wallet key inside Clawdi's vault (the raw key is never shown to you or the agent), and funds it on Filecoin's free test network.
+1. Your agent gives you an authorization URL. Open it, and create an account at [clawdi.ai](https://clawdi.ai) or sign in if you already have one.
+2. Approve the authorization. The browser then lands on a `127.0.0.1` address that fails to load. That is expected, nothing is listening there.
+3. Copy that full address from the browser's address bar and paste it back to your agent. It finishes the login from that address with `clawdi auth complete`.
+4. The link is valid for 10 minutes. If it expired, ask your agent for a new one.
+
+A Cloud Agent is not required. If you want one for the cloud-side recall at the end of setup, the dashboard offers it under New agent, then Deploy on Clawdi: pick Hermes or OpenClaw and review the monthly price. The `clawdi deploy` wizard does the same from the terminal.
+
+With authorization done, your agent picks back up automatically: it registers itself with Clawdi, creates a wallet key inside Clawdi's vault (the raw key is never shown to you or the agent), and funds it on Filecoin's Calibration test network. It ends by pointing you at a second agent to recall the greeting: another agent on the same machine verifies the bytes with foc-cli; a Cloud Agent can only fetch them over HTTP.
 
 ## Working Example
 
@@ -53,7 +58,7 @@ Plan the frontend for my dApp, then seal it and hand it off.
 
 The agent finishes the plan, encrypts it, uploads the encrypted file to Filecoin, and leaves a small pointer in Clawdi's shared memory describing where it is and how to unlock it.
 
-Open a different agent, a different framework, a different machine, doesn't matter, and retrieve it:
+Open a different agent, a different framework, a different machine, doesn't matter as long as it's a connected agent logged in to the same Clawdi account and set up with this skill, and retrieve it:
 
 ```text
 Pick up the frontend-design context and plan the backend against it.
@@ -65,19 +70,19 @@ It finds the pointer, downloads the file, checks it against the original fingerp
 
 1. **Seal.** The sending agent encrypts the content with a key that lives in Clawdi's vault. The key is referenced, never shown, and never leaves the vault.
 2. **Store.** The encrypted file is uploaded to Filecoin. The address returned is the hash of those exact bytes, so the address and the content are locked together.
-3. **Point.** A pointer, under 500 bytes, is left in Clawdi's shared memory. It says where the content lives and how to unlock it. It is not the content itself.
+3. **Point.** A pointer, under a kilobyte, is left in Clawdi's shared memory. It says where the content lives and how to unlock it. It is not the content itself.
 4. **Open.** The receiving agent finds the pointer, downloads the file, and checks the bytes against the original hash before doing anything else. Only then does it decrypt, using the same vault reference. A mismatch stops the process, it never guesses or substitutes a near match.
 
 A revised context is never edited in place. Sealing it again creates a new pointer, and the old one still resolves to what it always did. That's what makes the context immutable, not just stored.
 
-Sealed content is private, only agents that can resolve the same vault reference can decrypt it, but the storage underneath is independently checkable by anyone: storage providers must reprove they're still holding the data on a recurring schedule, not just accept it once. Clawdi's shared memory never holds more than the pointer, the content itself always lives on Filecoin.
+Sealed content is private, only agents that can resolve the same vault reference can decrypt it, but the storage underneath is independently checkable: anyone can fetch the bytes by URL, a foc-cli download with a configured wallet checks them against the hash, and storage providers must reprove they're still holding the data on a recurring schedule, not just accept it once. Clawdi's shared memory never holds more than the pointer, the content itself always lives on Filecoin.
 
 ## The two skills in this repo
 
 | Skill | Purpose |
 | --- | --- |
 | `filecoin-clawdi-context` | Seal a working context on one agent, open it on another. This is the one you use day to day. |
-| `filecoin-clawdi-setup` | One-time wiring: registers your agents, creates the wallet, and stores a small public greeting on Filecoin, left unencrypted on purpose so anyone can look it up and verify it directly. It's a working proof that storage and retrieval function, not something you reach for once setup is done. |
+| `filecoin-clawdi-setup` | One-time wiring: registers your agents, creates the wallet, and stores a small public greeting on Filecoin, left unencrypted on purpose so any agent can look it up, fetch it, and with foc-cli verify it. It's a working proof that storage and retrieval function, not something you reach for once setup is done. |
 
 ## Repository layout
 
